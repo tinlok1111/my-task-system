@@ -8,8 +8,9 @@
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+HK:wght@400;700&family=Press+Start+2P&display=swap');
         :root { /* Dark Theme Color Palette */ --background-color: #1a1a1a; --widget-bg: #2c2c2c; --text-color: #e0e0e0; --text-muted: #888; --border-color: #444; --completed-color: #666; --zelda-green: #48c774; --mario-red: #f14668; --mario-blue: #3e8ed0; --mario-yellow: #ffdd57; --week-met-color: rgba(72, 199, 116, 0.2); --week-missed-color: rgba(241, 70, 104, 0.2); --font-pixel: 'Press Start 2P', cursive; --font-body: 'Noto Sans HK', sans-serif; }
         body { font-family: var(--font-body); background-color: var(--background-color); color: var(--text-color); margin: 0; padding: 20px; }
-        .app-container { display: flex; flex-direction: column; align-items: center; visibility: hidden; } /* Initially hidden */
-        .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(26, 26, 26, 0.9); z-index: 2000; display: flex; justify-content: center; align-items: center; font-family: var(--font-pixel); color: var(--text-color); font-size: 1.2em; }
+        .app-container { display: flex; flex-direction: column; align-items: center; visibility: hidden; opacity: 0; transition: visibility 0s, opacity 0.5s linear; }
+        .app-container.loaded { visibility: visible; opacity: 1; }
+        .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(26, 26, 26, 0.95); z-index: 2000; display: flex; justify-content: center; align-items: center; font-family: var(--font-pixel); color: var(--text-color); font-size: 1.2em; transition: opacity 0.5s linear; }
         h2 { font-family: var(--font-pixel); color: var(--zelda-green); font-size: 1.1em; }
         .container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 100%; max-width: 1400px; align-items: stretch; }
         .widget { background-color: var(--widget-bg); border: 2px solid var(--border-color); border-radius: 10px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); display: flex; flex-direction: column; }
@@ -17,7 +18,7 @@
         .widget-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
         #weekly-task-day-counter { font-size: 0.8em; color: var(--text-muted); margin-left: 10px; }
         .task-list, .wish-list { list-style: none; padding: 0; flex-grow: 1; }
-        .task-item, .wish-item { display: flex; align-items: center; margin-bottom: 15px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; transition: all 0.3s ease; cursor: grab; }
+        .task-item, .wish-item { display: flex; align-items: center; margin-bottom: 15px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; transition: border-color 0.3s ease; cursor: grab; }
         .task-item:hover { border-color: var(--mario-blue); }
         .task-item.completed { background-color: rgba(0,0,0,0.2); color: var(--completed-color); }
         .task-item.completed .task-name { text-decoration: line-through; }
@@ -72,7 +73,6 @@
 
     <div class="app-container" id="app-container">
         <div class="points-display" id="points-display">0</div>
-
         <div class="container">
             <!-- Widgets -->
             <div class="widget">
@@ -86,14 +86,7 @@
                 <ul id="single-task-list" class="task-list"></ul>
             </div>
             <div class="widget">
-                 <div class="widget-header">
-                    <h2>願望清單 & 設定</h2>
-                    <div>
-                        <button class="btn btn-small" onclick="importData()">匯入</button>
-                        <button class="btn btn-small" onclick="exportData()">匯出</button>
-                        <button class="btn btn-small btn-danger" onclick="resetAllData()">重設雲端</button>
-                    </div>
-                </div>
+                 <div class="widget-header"><h2>願望清單 & 設定</h2><div><button class="btn btn-small" onclick="importData()">匯入</button><button class="btn btn-small" onclick="exportData()">匯出</button><button class="btn btn-small btn-danger" onclick="resetAllData()">重設雲端</button></div></div>
                 <div class="input-group"><input type="text" id="wish-input" placeholder="想要的東西"><input type="number" id="wish-cost-input" min="1" placeholder="所需金幣"><button class="btn" onclick="addWish()">新增願望</button></div>
                 <ul id="wish-list" class="wish-list"></ul>
             </div>
@@ -110,7 +103,7 @@
     <!-- Modals -->
     <div id="edit-modal" class="modal"><div class="modal-content"><span class="close-button" onclick="closeModal('edit-modal')">&times;</span><h2>編輯任務</h2><div id="edit-form-content"></div><button id="save-edit-btn" class="btn">儲存</button></div></div>
     <div id="monthly-events-modal" class="modal"><div class="modal-content"><span class="close-button" onclick="closeModal('monthly-events-modal')">&times;</span><h2>管理每月循環事項</h2><div class="input-group"><input type="text" id="monthly-event-name" placeholder="事項名稱"><input type="number" id="monthly-event-day" placeholder="日期 (1-31)" min="1" max="31"><button class="btn" onclick="addMonthlyEvent()">新增</button></div><ul id="monthly-events-list" class="monthly-events-list"></ul></div></div>
-
+    
     <audio id="coin-sound" src="https://www.myinstants.com/media/sounds/mario-coin-sound-effect.mp3" preload="auto"></audio>
     <audio id="powerup-sound" src="https://www.myinstants.com/media/sounds/super-mario-bros-power-up-sound-effect_1.mp3" preload="auto"></audio>
 
@@ -137,6 +130,8 @@
         let history = [], weeklyGoalStatus = {};
         let weekStartDate = null;
         let unsubscribe;
+        let currentCalendarDate = new Date();
+        let isInitialLoadComplete = false;
 
         // --- DOM ELEMENTS ---
         const $ = (selector) => document.querySelector(selector);
@@ -165,10 +160,9 @@
                     monthlyEvents = data.monthlyEvents || [];
                     weekStartDate = data.weekStartDate || null;
 
-                    if (checkAndApplyWeeklyReset()) {
+                    if (!isInitialLoadComplete && checkAndApplyWeeklyReset()) {
                         dataModified = true;
                     }
-
                 } else {
                     points = 0; weeklyTasks = []; singleTasks = []; wishes = []; monthlyEvents = [];
                     history = []; weeklyGoalStatus = {};
@@ -176,19 +170,25 @@
                     dataModified = true;
                 }
 
-                if (dataModified) {
-                    saveData();
+                if (!isInitialLoadComplete) {
+                    isInitialLoadComplete = true;
+                    if (dataModified) {
+                        saveData(); // Save only if reset occurred or it's a new user
+                    } else {
+                        renderAll(); // Render for the first time
+                    }
                 } else {
-                    renderAll();
+                     renderAll(); // Re-render on subsequent updates
                 }
             }, (error) => {
                 console.error("Firebase listener error: ", error);
-                alert("無法連接到雲端資料庫，請檢查您的網路連線或Firebase設定。");
+                $('#loading-overlay').textContent = "無法連接到雲端...";
             });
         }
 
         async function saveData() {
-            const dataToSave = { points, weeklyTasks, singleTasks, wishes, history, weeklyGoalStatus, monthlyEvents, weekStartDate };
+            if (!isInitialLoadComplete) return; // Prevent saving before initial load is complete
+            const dataToSave = { points, weeklyTasks, singleTasks, wishes, monthlyEvents, history, weeklyGoalStatus, weekStartDate };
             try {
                 await userDocRef.set(dataToSave);
             } catch (error) {
@@ -197,7 +197,7 @@
         }
         
         function exportData() {
-            const dataToExport = { points, weeklyTasks, singleTasks, wishes, history, weeklyGoalStatus, monthlyEvents, weekStartDate };
+            const dataToExport = { points, weeklyTasks, singleTasks, wishes, monthlyEvents, history, weeklyGoalStatus, weekStartDate };
             const dataString = JSON.stringify(dataToExport, null, 2);
             navigator.clipboard.writeText(dataString).then(() => {
                 alert('資料已成功匯出至剪貼簿！');
@@ -218,7 +218,7 @@
         }
 
         async function resetAllData() {
-            if (confirm('警告！您確定要刪除所有雲端資料嗎？\n此操作將永久清除所有任務、願望、積分和歷史紀錄，且無法復原。')) {
+            if (confirm('警告！您確定要刪除所有雲端資料嗎？\n此操作將永久清除所有任務、願望和歷史紀錄，且無法復原。')) {
                 await userDocRef.delete();
                 alert('雲端資料已重設。頁面將會自動更新為初始狀態。');
             }
@@ -258,7 +258,7 @@
         }
         
         function handleTaskCompletion(task, pointsValue) {
-            task.completed = true; updatePoints(pointsValue); $('#coin-sound').play(); addToHistory(new Date()); saveData();
+            task.completed = true; updatePoints(pointsValue); $('#coin-sound').play(); addToHistory(task.name); saveData();
         }
 
         function toggleTask(type, taskId, subTaskIndex = null) {
@@ -283,7 +283,8 @@
 
         function handleWeeklyTaskCompletion(task) {
             if (task.completedCount < task.goal) {
-                task.completedCount++; updatePoints(10); $('#coin-sound').play(); addToHistory(new Date());
+                task.completedCount++; updatePoints(10); $('#coin-sound').play();
+                addToHistory(`${task.name} (${task.completedCount}/${task.goal})`);
                 if (task.completedCount === task.goal) { updatePoints(20); $('#powerup-sound').play(); }
             }
         }
@@ -364,13 +365,13 @@
 
         function addMonthlyEvent() {
             const name = $('#monthly-event-name').value.trim(); const day = parseInt($('#monthly-event-day').value);
-            if (!name || !day) return;
+            if (!name || !day || day < 1 || day > 31) { alert('請輸入有效的日期 (1-31)'); return; }
             monthlyEvents.push({ id: Date.now(), name, day });
-            renderMonthlyEvents(); saveData();
+            renderMonthlyEventsList(); saveData();
         }
 
-        function deleteMonthlyEvent(id) { monthlyEvents = monthlyEvents.filter(e => e.id !== id); renderMonthlyEvents(); saveData(); }
-
+        function deleteMonthlyEvent(id) { monthlyEvents = monthlyEvents.filter(e => e.id !== id); renderMonthlyEventsList(); saveData(); }
+        
         function openModal(id) { $(`#${id}`).style.display = 'block'; }
         function closeModal(id) { $(`#${id}`).style.display = 'none'; }
         
@@ -396,18 +397,18 @@
             closeModal('edit-modal'); saveData();
         }
 
-        function openMonthlyEventsModal() { renderMonthlyEvents(); openModal('monthly-events-modal'); }
+        function openMonthlyEventsModal() { renderMonthlyEventsList(); openModal('monthly-events-modal'); }
 
         function updatePoints(amount) { points += amount; }
-        function addToHistory(date) { const dateString = date.toISOString().split('T')[0]; if (!history.includes(dateString)) history.push(dateString); }
+        function addToHistory(taskName) { const todayStr = new Date().toISOString().split('T')[0]; if (!history.includes(todayStr)) { history.push(todayStr); } }
         
         function changeMonth(delta) { currentCalendarDate.setMonth(currentCalendarDate.getMonth() + delta); renderCalendar(); }
         function changeYear(year) { currentCalendarDate.setFullYear(parseInt(year)); renderCalendar(); }
 
         function renderAll() {
-            // Unhide the main app container once rendering starts
-            $('#loading-overlay').style.display = 'none';
-            $('#app-container').style.visibility = 'visible';
+            $('#loading-overlay').style.opacity = '0';
+            setTimeout(() => { $('#loading-overlay').style.display = 'none'; }, 500);
+            $('#app-container').classList.add('loaded');
 
             renderPoints(); renderWeeklyTasks(); renderSingleTasks(); renderWishes(); renderCalendar();
         }
@@ -463,11 +464,12 @@
             wishes.forEach(wish => {
                 const li = document.createElement('li'); li.className = 'wish-item';
                 li.innerHTML = `<span class="task-name">${wish.name}</span><span class="cost">${wish.cost} 💰</span><button class="btn btn-redeem" onclick="redeemWish(${wish.id})" ${points < wish.cost ? 'disabled' : ''}>換領</button><button class="btn-action btn-delete" onclick="deleteWish(${wish.id})">🗑️</button>`;
+                li.draggable = false; li.style.cursor = 'default';
                 $('#wish-list').appendChild(li);
             });
         }
         
-        function renderMonthlyEvents() {
+        function renderMonthlyEventsList() {
             const list = $('#monthly-events-list'); list.innerHTML = '';
             monthlyEvents.forEach(e => {
                 const li = document.createElement('li');
@@ -517,4 +519,4 @@
         }
     </script>
 </body>
-</html>
+</html>```
