@@ -61,7 +61,7 @@
         }
 
         .widget h2 { margin-top: 0; }
-        .widget-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .widget-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
         #weekly-task-day-counter { font-size: 0.8em; color: var(--text-muted); margin-left: 10px; }
 
         .task-list, .wish-list { list-style: none; padding: 0; flex-grow: 1; }
@@ -169,8 +169,12 @@
         
         <div class="widget">
              <div class="widget-header">
-                <h2>願望清單</h2>
-                <button class="btn btn-small btn-danger" onclick="resetAllData()">重設所有資料</button>
+                <h2>願望清單 & 設定</h2>
+                <div>
+                    <button class="btn btn-small" onclick="importData()">匯入</button>
+                    <button class="btn btn-small" onclick="exportData()">匯出</button>
+                    <button class="btn btn-small btn-danger" onclick="resetAllData()">重設</button>
+                </div>
             </div>
             <div class="input-group">
                 <input type="text" id="wish-input" placeholder="想要的東西 (例如: 新遊戲)">
@@ -251,6 +255,29 @@
             checkWeeklyReset();
         }
 
+        function exportData() {
+            const dataString = localStorage.getItem('taskMasterData');
+            navigator.clipboard.writeText(dataString).then(() => {
+                alert('資料已成功匯出至剪貼簿！');
+            }, () => {
+                alert('匯出失敗，您的瀏覽器可能不支援此功能。');
+            });
+        }
+
+        function importData() {
+            const dataString = prompt('請在此貼上您之前匯出的資料字串：');
+            if (dataString) {
+                try {
+                    JSON.parse(dataString); // Test if it's valid JSON
+                    localStorage.setItem('taskMasterData', dataString);
+                    alert('資料匯入成功！頁面將會重新整理。');
+                    location.reload();
+                } catch (e) {
+                    alert('匯入失敗！資料格式錯誤。');
+                }
+            }
+        }
+
         function resetAllData() {
             if (confirm('警告！您確定要刪除所有資料嗎？\n此操作將永久清除所有任務、願望、積分和歷史紀錄，且無法復原。')) {
                 localStorage.clear();
@@ -325,41 +352,23 @@
                 let draggingElement = null;
                 list.addEventListener('dragstart', e => {
                     if (e.target.classList.contains('task-item')) {
-                        draggingElement = e.target;
-                        setTimeout(() => e.target.classList.add('dragging'), 0);
+                        draggingElement = e.target; setTimeout(() => e.target.classList.add('dragging'), 0);
                     }
                 });
-
                 list.addEventListener('dragend', e => {
-                    if(draggingElement) {
-                        draggingElement.classList.remove('dragging');
-                        draggingElement = null;
-                    }
+                    if(draggingElement) { draggingElement.classList.remove('dragging'); draggingElement = null; }
                 });
-
                 list.addEventListener('dragover', e => {
-                    e.preventDefault();
-                    if (!draggingElement) return;
-
+                    e.preventDefault(); if (!draggingElement) return;
                     const afterElement = getDragAfterElement(list, e.clientY);
-                    if (afterElement == null) {
-                        list.appendChild(draggingElement);
-                    } else {
-                        list.insertBefore(draggingElement, afterElement);
-                    }
+                    if (afterElement == null) { list.appendChild(draggingElement); } else { list.insertBefore(draggingElement, afterElement); }
                 });
-                
                 list.addEventListener('drop', e => {
-                     e.preventDefault();
-                     if (!draggingElement) return;
-                     
-                     const listId = list.id;
-                     const taskArray = listId === 'weekly-task-list' ? weeklyTasks : singleTasks;
+                     e.preventDefault(); if (!draggingElement) return;
+                     const taskArray = list.id === 'weekly-task-list' ? weeklyTasks : singleTasks;
                      const newIdOrder = [...list.querySelectorAll('.task-item')].map(item => parseInt(item.dataset.id));
-                     
                      taskArray.sort((a, b) => newIdOrder.indexOf(a.id) - newIdOrder.indexOf(b.id));
-                     
-                     saveData(); // Save new order immediately
+                     saveData();
                 });
             });
         }
@@ -367,13 +376,8 @@
         function getDragAfterElement(container, y) {
             const draggableElements = [...container.querySelectorAll('.task-item:not(.dragging)')];
             return draggableElements.reduce((closest, child) => {
-                const box = child.getBoundingClientRect();
-                const offset = y - box.top - box.height / 2;
-                if (offset < 0 && offset > closest.offset) {
-                    return { offset: offset, element: child };
-                } else {
-                    return closest;
-                }
+                const box = child.getBoundingClientRect(); const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) { return { offset: offset, element: child }; } else { return closest; }
             }, { offset: Number.NEGATIVE_INFINITY }).element;
         }
 
@@ -479,10 +483,7 @@
         
         function renderTaskItem(task, type) {
             const li = document.createElement('li');
-            li.className = `task-item ${task.completed ? 'completed' : ''}`;
-            li.dataset.id = task.id;
-            li.draggable = true;
-
+            li.className = `task-item ${task.completed ? 'completed' : ''}`; li.dataset.id = task.id; li.draggable = true;
             const subtaskHtml = task.subTasks.map((st, i) => `<div><input type="checkbox" onchange="toggleTask('${type}', ${task.id}, ${i})" ${st.completed ? 'checked' : ''} ${task.completed ? 'disabled' : ''}><span>${st.name}</span></div>`).join('');
             
             let mainCheckbox = '';
