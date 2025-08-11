@@ -115,7 +115,6 @@
 
     <script>
         // --- 1. FIREBASE SETUP ---
-        // Your web app's Firebase configuration
         const firebaseConfig = {
             apiKey: "AIzaSyDbQNJNZ0A1CgTw-IeHMd89YGiTbaAbiX0",
             authDomain: "my-task-system.firebaseapp.com",
@@ -124,11 +123,8 @@
             messagingSenderId: "152371980483",
             appId: "1:152371980483:web:a706c7f6b9611ba2a81a76"
         };
-
-        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
-        // We use a single document to store all data for this simple app
         const userDocRef = db.collection("userData").doc("mainData");
 
         // --- DATA & STATE ---
@@ -136,6 +132,7 @@
         let history = [], weeklyGoalStatus = {};
         let weekStartDate = null;
         let isDataLoaded = false;
+        let unsubscribe; // To store the listener unsubscribe function
 
         // --- DOM ELEMENTS ---
         const $ = (selector) => document.querySelector(selector);
@@ -150,7 +147,8 @@
 
         // --- REAL-TIME & MANUAL DATA HANDLING ---
         function setupRealtimeListener() {
-            userDocRef.onSnapshot((doc) => {
+            if (unsubscribe) unsubscribe(); // Unsubscribe from previous listener if it exists
+            unsubscribe = userDocRef.onSnapshot((doc) => {
                 if (doc.exists) {
                     const data = doc.data();
                     points = data.points || 0;
@@ -161,18 +159,14 @@
                     weeklyGoalStatus = data.weeklyGoalStatus || {};
                     monthlyEvents = data.monthlyEvents || [];
                     weekStartDate = data.weekStartDate || null;
-                } else {
-                    console.log("No data in Firestore, initializing document.");
-                    saveData(); // Create initial document if it doesn't exist
                 }
                 
                 if (!isDataLoaded) {
                     isDataLoaded = true;
+                    // Check for weekly reset ONLY after the first data load.
                     checkWeeklyReset();
-                    renderAll();
-                } else {
-                    renderAll();
                 }
+                renderAll(); // Always render after getting new data
             }, (error) => {
                 console.error("Firebase listener error: ", error);
                 alert("無法連接到雲端資料庫，請檢查您的網路連線或Firebase設定。");
@@ -180,9 +174,10 @@
         }
 
         async function saveData() {
-            if (!isDataLoaded) return; // Prevent saving before initial load
+            if (!isDataLoaded) return;
             const dataToSave = { points, weeklyTasks, singleTasks, wishes, history, weeklyGoalStatus, monthlyEvents, weekStartDate };
             try {
+                // Using set with merge: true is slightly safer for not overwriting fields if another client writes simultaneously, but for a single-user app, set() is fine.
                 await userDocRef.set(dataToSave);
             } catch (error) {
                 console.error("Error saving data to Firestore: ", error);
@@ -191,12 +186,10 @@
         
         function exportData() {
             const dataToExport = { points, weeklyTasks, singleTasks, wishes, history, weeklyGoalStatus, monthlyEvents, weekStartDate };
-            const dataString = JSON.stringify(dataToExport, null, 2); // Pretty print JSON
+            const dataString = JSON.stringify(dataToExport, null, 2);
             navigator.clipboard.writeText(dataString).then(() => {
                 alert('資料已成功匯出至剪貼簿！');
-            }, () => {
-                alert('匯出失敗。');
-            });
+            }, () => { alert('匯出失敗。'); });
         }
 
         async function importData() {
@@ -204,20 +197,10 @@
             if (dataString) {
                 try {
                     const data = JSON.parse(dataString);
-                    // Update local state directly from imported data
-                    points = data.points || 0;
-                    weeklyTasks = data.weeklyTasks || [];
-                    singleTasks = data.singleTasks || [];
-                    wishes = data.wishes || [];
-                    history = data.history || [];
-                    weeklyGoalStatus = data.weeklyGoalStatus || {};
-                    monthlyEvents = data.monthlyEvents || [];
-                    weekStartDate = data.weekStartDate || null;
-                    
-                    // Push the new state to the cloud
-                    await saveData();
-                    alert('資料匯入並同步至雲端成功！');
-                    renderAll(); // Immediately render the new state
+                    // This will directly overwrite the cloud data.
+                    await userDocRef.set(data);
+                    alert('資料匯入並同步至雲端成功！頁面將會自動更新。');
+                    // The onSnapshot listener will automatically handle the update and re-render.
                 } catch (e) {
                     alert('匯入失敗！資料格式錯誤。');
                 }
@@ -226,15 +209,14 @@
 
         async function resetAllData() {
             if (confirm('警告！您確定要刪除所有雲端資料嗎？\n此操作將永久清除所有任務、願望、積分和歷史紀錄，且無法復原。')) {
-                points = 0; weeklyTasks = []; singleTasks = []; wishes = []; monthlyEvents = []; history = []; weeklyGoalStatus = {}; weekStartDate = null;
-                await saveData(); 
-                alert('雲端資料已重設。');
+                // Instead of clearing local state, just delete the document from the cloud.
+                // The onSnapshot listener will receive an event that the doc doesn't exist, and the app will reset.
+                await userDocRef.delete();
+                alert('雲端資料已重設。頁面將會自動更新。');
             }
         }
 
-        // --- The rest of the functions (add/delete tasks, etc.) call saveData() at the end of their logic ---
-        // --- This ensures any change is pushed to Firestore automatically. ---
-
+        // --- The rest of the functions call saveData() at the end of their logic ---
         function addWeeklyTask() {
             const name = $('#weekly-task-input').value.trim(); if (!name) return;
             const subtasks = $('#weekly-subtask-input').value.trim().split(',').filter(Boolean).map(st => ({ name: st.trim(), completed: false }));
@@ -333,12 +315,15 @@
         
         function checkWeeklyReset() {
              const now = new Date();
-             if (weekStartDate) {
-                const lastReset = new Date(weekStartDate);
-                if (now.getDay() === 1 && (now - lastReset) / (1000 * 60 * 60 * 24) >= 1) {
-                    evaluateAndStoreLastWeekStatus(); resetCoreWeeklyLogic(); weekStartDate = now.toISOString().split('T')[0];
-                    saveData();
-                }
+             if (!weekStartDate) { // If it's the very first time, set the date.
+                weekStartDate = now.toISOString().split('T')[0];
+                saveData();
+                return;
+             }
+             const lastReset = new Date(weekStartDate);
+             if (now.getDay() === 1 && (now - lastReset) / (1000 * 60 * 60 * 24) >= 1) {
+                evaluateAndStoreLastWeekStatus(); resetCoreWeeklyLogic(); weekStartDate = now.toISOString().split('T')[0];
+                saveData();
              }
         }
 
