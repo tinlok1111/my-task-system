@@ -7,7 +7,9 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+HK:wght@400;700&family=Press+Start+2P&display=swap');
         :root { /* Dark Theme Color Palette */ --background-color: #1a1a1a; --widget-bg: #2c2c2c; --text-color: #e0e0e0; --text-muted: #888; --border-color: #444; --completed-color: #666; --zelda-green: #48c774; --mario-red: #f14668; --mario-blue: #3e8ed0; --mario-yellow: #ffdd57; --week-met-color: rgba(72, 199, 116, 0.2); --week-missed-color: rgba(241, 70, 104, 0.2); --font-pixel: 'Press Start 2P', cursive; --font-body: 'Noto Sans HK', sans-serif; }
-        body { font-family: var(--font-body); background-color: var(--background-color); color: var(--text-color); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        body { font-family: var(--font-body); background-color: var(--background-color); color: var(--text-color); margin: 0; padding: 20px; }
+        .app-container { display: flex; flex-direction: column; align-items: center; visibility: hidden; } /* Initially hidden */
+        .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(26, 26, 26, 0.9); z-index: 2000; display: flex; justify-content: center; align-items: center; font-family: var(--font-pixel); color: var(--text-color); font-size: 1.2em; }
         h2 { font-family: var(--font-pixel); color: var(--zelda-green); font-size: 1.1em; }
         .container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 100%; max-width: 1400px; align-items: stretch; }
         .widget { background-color: var(--widget-bg); border: 2px solid var(--border-color); border-radius: 10px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); display: flex; flex-direction: column; }
@@ -66,38 +68,41 @@
     </style>
 </head>
 <body>
+    <div class="loading-overlay" id="loading-overlay">正在從雲端同步資料...</div>
 
-    <div class="points-display" id="points-display">0</div>
+    <div class="app-container" id="app-container">
+        <div class="points-display" id="points-display">0</div>
 
-    <div class="container">
-        <!-- Widgets -->
-        <div class="widget">
-            <div class="widget-header"><h2>每周循環任務<span id="weekly-task-day-counter"></span></h2><button class="btn btn-small" onclick="manualResetWeeklyTasks()">新的一周</button></div>
-            <div class="input-group"><input type="text" id="weekly-task-input" placeholder="新增每周任務"><input type="text" id="weekly-subtask-input" placeholder="子任務 (選填, 逗號分隔)"><input type="number" id="weekly-goal-input" min="1" value="1" title="每周需完成次數"><button class="btn" onclick="addWeeklyTask()">新增</button></div>
-            <ul id="weekly-task-list" class="task-list"></ul>
-        </div>
-        <div class="widget">
-             <div class="widget-header"><h2>單次任務</h2><button class="btn btn-small btn-danger" onclick="deleteAllCompletedSingleTasks()">刪除已完成</button></div>
-             <div class="input-group"><input type="text" id="single-task-input" placeholder="新增單次任務"><input type="text" id="single-subtask-input" placeholder="子任務 (選填, 逗號分隔)"><input type="date" id="single-task-due-date"><select id="single-task-importance"><option value="1">低</option><option value="2">中</option><option value="3">高</option></select><button class="btn" onclick="addSingleTask()">新增</button></div>
-            <ul id="single-task-list" class="task-list"></ul>
-        </div>
-        <div class="widget">
-             <div class="widget-header">
-                <h2>願望清單 & 設定</h2>
-                <div>
-                    <button class="btn btn-small" onclick="importData()">匯入</button>
-                    <button class="btn btn-small" onclick="exportData()">匯出</button>
-                    <button class="btn btn-small btn-danger" onclick="resetAllData()">重設雲端</button>
-                </div>
+        <div class="container">
+            <!-- Widgets -->
+            <div class="widget">
+                <div class="widget-header"><h2>每周循環任務<span id="weekly-task-day-counter"></span></h2><button class="btn btn-small" onclick="manualResetWeeklyTasks()">新的一周</button></div>
+                <div class="input-group"><input type="text" id="weekly-task-input" placeholder="新增每周任務"><input type="text" id="weekly-subtask-input" placeholder="子任務 (選填, 逗號分隔)"><input type="number" id="weekly-goal-input" min="1" value="1" title="每周需完成次數"><button class="btn" onclick="addWeeklyTask()">新增</button></div>
+                <ul id="weekly-task-list" class="task-list"></ul>
             </div>
-            <div class="input-group"><input type="text" id="wish-input" placeholder="想要的東西"><input type="number" id="wish-cost-input" min="1" placeholder="所需金幣"><button class="btn" onclick="addWish()">新增願望</button></div>
-            <ul id="wish-list" class="wish-list"></ul>
-        </div>
-        <div class="widget">
-            <div id="calendar-container">
-                <div class="widget-header"><h2>歷史紀錄</h2><button class="btn btn-small" onclick="openMonthlyEventsModal()">管理每月事項</button></div>
-                <div id="calendar-nav"><button class="btn btn-nav" onclick="changeMonth(-1)">‹ 上一月</button><div><select id="year-select" onchange="changeYear(this.value)"></select><span id="month-display" style="margin-left: 10px;"></span></div><button class="btn btn-nav" onclick="changeMonth(1)">下一月 ›</button></div>
-                <div id="calendar"></div>
+            <div class="widget">
+                 <div class="widget-header"><h2>單次任務</h2><button class="btn btn-small btn-danger" onclick="deleteAllCompletedSingleTasks()">刪除已完成</button></div>
+                 <div class="input-group"><input type="text" id="single-task-input" placeholder="新增單次任務"><input type="text" id="single-subtask-input" placeholder="子任務 (選填, 逗號分隔)"><input type="date" id="single-task-due-date"><select id="single-task-importance"><option value="1">低</option><option value="2">中</option><option value="3">高</option></select><button class="btn" onclick="addSingleTask()">新增</button></div>
+                <ul id="single-task-list" class="task-list"></ul>
+            </div>
+            <div class="widget">
+                 <div class="widget-header">
+                    <h2>願望清單 & 設定</h2>
+                    <div>
+                        <button class="btn btn-small" onclick="importData()">匯入</button>
+                        <button class="btn btn-small" onclick="exportData()">匯出</button>
+                        <button class="btn btn-small btn-danger" onclick="resetAllData()">重設雲端</button>
+                    </div>
+                </div>
+                <div class="input-group"><input type="text" id="wish-input" placeholder="想要的東西"><input type="number" id="wish-cost-input" min="1" placeholder="所需金幣"><button class="btn" onclick="addWish()">新增願望</button></div>
+                <ul id="wish-list" class="wish-list"></ul>
+            </div>
+            <div class="widget">
+                <div id="calendar-container">
+                    <div class="widget-header"><h2>歷史紀錄</h2><button class="btn btn-small" onclick="openMonthlyEventsModal()">管理每月事項</button></div>
+                    <div id="calendar-nav"><button class="btn btn-nav" onclick="changeMonth(-1)">‹ 上一月</button><div><select id="year-select" onchange="changeYear(this.value)"></select><span id="month-display" style="margin-left: 10px;"></span></div><button class="btn btn-nav" onclick="changeMonth(1)">下一月 ›</button></div>
+                    <div id="calendar"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -131,8 +136,7 @@
         let points = 0, weeklyTasks = [], singleTasks = [], wishes = [], monthlyEvents = [];
         let history = [], weeklyGoalStatus = {};
         let weekStartDate = null;
-        let isDataLoaded = false;
-        let unsubscribe; // To store the listener unsubscribe function
+        let unsubscribe;
 
         // --- DOM ELEMENTS ---
         const $ = (selector) => document.querySelector(selector);
@@ -145,10 +149,11 @@
         }
         window.onclick = (event) => { if (event.target.classList.contains('modal')) closeModal(event.target.id); };
 
-        // --- REAL-TIME & MANUAL DATA HANDLING ---
+        // --- REAL-TIME & MANUAL DATA HANDLING (ROBUST VERSION) ---
         function setupRealtimeListener() {
-            if (unsubscribe) unsubscribe(); // Unsubscribe from previous listener if it exists
+            if (unsubscribe) unsubscribe(); 
             unsubscribe = userDocRef.onSnapshot((doc) => {
+                let dataModified = false;
                 if (doc.exists) {
                     const data = doc.data();
                     points = data.points || 0;
@@ -159,14 +164,23 @@
                     weeklyGoalStatus = data.weeklyGoalStatus || {};
                     monthlyEvents = data.monthlyEvents || [];
                     weekStartDate = data.weekStartDate || null;
+
+                    if (checkAndApplyWeeklyReset()) {
+                        dataModified = true;
+                    }
+
+                } else {
+                    points = 0; weeklyTasks = []; singleTasks = []; wishes = []; monthlyEvents = [];
+                    history = []; weeklyGoalStatus = {};
+                    weekStartDate = new Date().toISOString().split('T')[0];
+                    dataModified = true;
                 }
-                
-                if (!isDataLoaded) {
-                    isDataLoaded = true;
-                    // Check for weekly reset ONLY after the first data load.
-                    checkWeeklyReset();
+
+                if (dataModified) {
+                    saveData();
+                } else {
+                    renderAll();
                 }
-                renderAll(); // Always render after getting new data
             }, (error) => {
                 console.error("Firebase listener error: ", error);
                 alert("無法連接到雲端資料庫，請檢查您的網路連線或Firebase設定。");
@@ -174,10 +188,8 @@
         }
 
         async function saveData() {
-            if (!isDataLoaded) return;
             const dataToSave = { points, weeklyTasks, singleTasks, wishes, history, weeklyGoalStatus, monthlyEvents, weekStartDate };
             try {
-                // Using set with merge: true is slightly safer for not overwriting fields if another client writes simultaneously, but for a single-user app, set() is fine.
                 await userDocRef.set(dataToSave);
             } catch (error) {
                 console.error("Error saving data to Firestore: ", error);
@@ -197,10 +209,8 @@
             if (dataString) {
                 try {
                     const data = JSON.parse(dataString);
-                    // This will directly overwrite the cloud data.
                     await userDocRef.set(data);
                     alert('資料匯入並同步至雲端成功！頁面將會自動更新。');
-                    // The onSnapshot listener will automatically handle the update and re-render.
                 } catch (e) {
                     alert('匯入失敗！資料格式錯誤。');
                 }
@@ -209,14 +219,28 @@
 
         async function resetAllData() {
             if (confirm('警告！您確定要刪除所有雲端資料嗎？\n此操作將永久清除所有任務、願望、積分和歷史紀錄，且無法復原。')) {
-                // Instead of clearing local state, just delete the document from the cloud.
-                // The onSnapshot listener will receive an event that the doc doesn't exist, and the app will reset.
                 await userDocRef.delete();
-                alert('雲端資料已重設。頁面將會自動更新。');
+                alert('雲端資料已重設。頁面將會自動更新為初始狀態。');
             }
         }
 
-        // --- The rest of the functions call saveData() at the end of their logic ---
+        function checkAndApplyWeeklyReset() {
+             const now = new Date();
+             if (!weekStartDate) {
+                weekStartDate = now.toISOString().split('T')[0];
+                return true;
+             }
+             const lastReset = new Date(weekStartDate);
+             if (now.getDay() === 1 && (now - lastReset) / (1000 * 60 * 60 * 24) >= 1) {
+                evaluateAndStoreLastWeekStatus(); 
+                resetCoreWeeklyLogic(); 
+                weekStartDate = now.toISOString().split('T')[0];
+                return true;
+             }
+             return false;
+        }
+
+        // --- All other functions call saveData() at the end ---
         function addWeeklyTask() {
             const name = $('#weekly-task-input').value.trim(); if (!name) return;
             const subtasks = $('#weekly-subtask-input').value.trim().split(',').filter(Boolean).map(st => ({ name: st.trim(), completed: false }));
@@ -312,20 +336,6 @@
         }
 
         function resetCoreWeeklyLogic() { weeklyTasks.forEach(task => { task.completedCount = 0; if(task.subTasks) task.subTasks.forEach(st => st.completed = false); }); }
-        
-        function checkWeeklyReset() {
-             const now = new Date();
-             if (!weekStartDate) { // If it's the very first time, set the date.
-                weekStartDate = now.toISOString().split('T')[0];
-                saveData();
-                return;
-             }
-             const lastReset = new Date(weekStartDate);
-             if (now.getDay() === 1 && (now - lastReset) / (1000 * 60 * 60 * 24) >= 1) {
-                evaluateAndStoreLastWeekStatus(); resetCoreWeeklyLogic(); weekStartDate = now.toISOString().split('T')[0];
-                saveData();
-             }
-        }
 
         function getWeekIdentifier(d) {
             d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
@@ -395,7 +405,10 @@
         function changeYear(year) { currentCalendarDate.setFullYear(parseInt(year)); renderCalendar(); }
 
         function renderAll() {
-            if (!isDataLoaded) return;
+            // Unhide the main app container once rendering starts
+            $('#loading-overlay').style.display = 'none';
+            $('#app-container').style.visibility = 'visible';
+
             renderPoints(); renderWeeklyTasks(); renderSingleTasks(); renderWishes(); renderCalendar();
         }
 
