@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>任務管理系統</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+HK:wght@400;700&family=Press+Start+2P&display=swap');
+
+        :root {
+            /* Dark Theme Color Palette */
+            --background-color: #1a1a1a;
+            --widget-bg: #2c2c2c;
+            --text-color: #e0e0e0;
+            --text-muted: #888;
+            --border-color: #444;
+            --completed-color: #666;
+            
+            --zelda-green: #48c774;
+            --mario-red: #f14668;
+            --mario-blue: #3e8ed0;
+            --mario-yellow: #ffdd57;
+
+            --week-met-color: rgba(72, 199, 116, 0.2);
+            --week-missed-color: rgba(241, 70, 104, 0.2);
+            
+            --font-pixel: 'Press Start 2P', cursive;
+            --font-body: 'Noto Sans HK', sans-serif;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background-color: var(--background-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h2 { font-family: var(--font-pixel); color: var(--zelda-green); font-size: 1.1em; }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            width: 100%;
+            max-width: 1400px;
+            align-items: stretch;
+        }
+
+        .widget {
+            background-color: var(--widget-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .widget h2 { margin-top: 0; }
+        .widget-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        #weekly-task-day-counter { font-size: 0.8em; color: var(--text-muted); margin-left: 10px; }
+
+        .task-list, .wish-list { list-style: none; padding: 0; flex-grow: 1; }
+        .task-item, .wish-item { display: flex; align-items: center; margin-bottom: 15px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; transition: all 0.3s ease; cursor: grab; }
+        .task-item:hover { border-color: var(--mario-blue); }
+
+        .task-item.completed { background-color: rgba(0,0,0,0.2); color: var(--completed-color); }
+        .task-item.completed .task-name { text-decoration: line-through; }
+        .task-item.completed, .task-item.completed .importance, .task-item.completed .weekly-goal { opacity: 0.6; }
+        .task-item.dragging { opacity: 0.4; cursor: grabbing; }
+
+
+        .task-item input[type="checkbox"] { width: 18px; height: 18px; margin-right: 15px; cursor: pointer; flex-shrink: 0; }
+        .task-name { flex-grow: 1; font-size: 1em; }
+        .task-name .sub-tasks { font-size: 0.9em; color: var(--text-muted); margin-left: 20px; margin-top: 5px; }
+        .importance { color: var(--mario-red); }
+        .due-date { font-size: 0.9em; color: var(--text-muted); margin-left: 10px; white-space: nowrap; }
+        .weekly-goal { font-family: var(--font-pixel); color: var(--mario-blue); margin-left: 10px; font-size: 0.9em; }
+
+        .input-group { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
+        .input-group input, .input-group select, .input-group textarea { flex-grow: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 5px; font-family: var(--font-body); min-width: 100px; background-color: #333; color: var(--text-color); }
+        .input-group textarea { resize: vertical; }
+
+        .btn { padding: 10px 15px; border: none; border-radius: 5px; background-color: var(--mario-blue); color: #fff; font-family: var(--font-pixel); font-size: 0.8em; cursor: pointer; transition: all 0.2s ease; white-space: nowrap; }
+        .btn:hover { filter: brightness(1.2); }
+        .btn-small { font-size: 0.7em; padding: 5px 8px; background-color: #555; }
+        .btn-nav { font-size: 1em; padding: 5px 10px; background-color: transparent; border: 1px solid var(--border-color); color: var(--text-color); }
+        .btn-danger { background-color: var(--mario-red); }
+
+        .btn-action { background: none; border: none; cursor: pointer; font-size: 1.1em; padding: 5px; margin-left: 5px; }
+        .btn-delete { color: var(--mario-red); }
+        .btn-edit { color: var(--mario-blue); }
+
+        .wish-item .cost { font-family: var(--font-pixel); color: var(--secondary-color); margin-right: 15px; }
+        .wish-item .btn-redeem { background-color: var(--zelda-green); color: #fff; }
+
+        .points-display { text-align: center; font-family: var(--font-pixel); font-size: 2em; color: var(--mario-yellow); background-color: var(--widget-bg); border: 2px solid var(--border-color); padding: 20px; border-radius: 10px; margin-bottom: 20px; width: 100%; max-width: 1400px; box-sizing: border-box; }
+        .points-display::before { content: '💰'; margin-right: 10px; }
+
+        #calendar-container { display: flex; flex-direction: column; height: 100%; }
+        #calendar-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        #calendar-nav select { background-color: #333; color: var(--text-color); border: 1px solid var(--border-color); }
+
+        #calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; flex-grow: 1; }
+        .calendar-day { background-color: #222; border: 1px solid var(--border-color); padding-top: 100%; position: relative; font-size: 0.8em; }
+        .calendar-day .day-content { position: absolute; top: 0; left: 0; right: 0; bottom: 0; padding: 5px; text-align: left; overflow-y: auto; }
+        .day-number { font-weight: bold; text-align: right; }
+        .calendar-day.day-header { background-color: #333; padding-top: 0; height: 30px; line-height: 30px; text-align: center; }
+        .calendar-day.week-goal-met { background-color: var(--week-met-color) !important; }
+        .calendar-day.week-goal-missed { background-color: var(--week-missed-color) !important; }
+
+        .record-mark { font-size: 12px; }
+        .calendar-event { display: block; font-size: 0.9em; padding: 2px 4px; border-radius: 3px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .due-date-event { background-color: var(--mario-red); color: #fff; }
+        .monthly-event { background-color: var(--zelda-green); color: #fff; }
+        
+        /* Modal Styles */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); }
+        .modal-content { background-color: var(--widget-bg); margin: 10% auto; padding: 20px; border: 1px solid var(--border-color); border-radius: 10px; width: 80%; max-width: 600px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
+        .modal-content .input-group { display: flex; flex-direction: column; gap: 15px; }
+        .close-button { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .monthly-events-list { list-style-type: none; padding: 0; }
+        .monthly-events-list li { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid var(--border-color); }
+
+        @media (max-width: 768px) {
+            .container { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="points-display" id="points-display">0</div>
+
+    <div class="container">
+        <div class="widget">
+            <div class="widget-header">
+                <h2>每周循環任務<span id="weekly-task-day-counter"></span></h2>
+                <button class="btn btn-small" onclick="manualResetWeeklyTasks()">新的一周</button>
+            </div>
+            <div class="input-group">
+                <input type="text" id="weekly-task-input" placeholder="新增每周任務">
+                <input type="text" id="weekly-subtask-input" placeholder="子任務 (選填, 逗號分隔)">
+                <input type="number" id="weekly-goal-input" min="1" value="1" title="每周需完成次數">
+                <button class="btn" onclick="addWeeklyTask()">新增</button>
+            </div>
+            <ul id="weekly-task-list" class="task-list"></ul>
+        </div>
+
+        <div class="widget">
+             <div class="widget-header">
+                <h2>單次任務</h2>
+                <button class="btn btn-small btn-danger" onclick="deleteAllCompletedSingleTasks()">刪除已完成</button>
+            </div>
+            <div class="input-group">
+                <input type="text" id="single-task-input" placeholder="新增單次任務">
+                <input type="text" id="single-subtask-input" placeholder="子任務 (選填, 逗號分隔)">
+                <input type="date" id="single-task-due-date">
+                <select id="single-task-importance">
+                    <option value="1">低</option><option value="2">中</option><option value="3">高</option>
+                </select>
+                <button class="btn" onclick="addSingleTask()">新增</button>
+            </div>
+            <ul id="single-task-list" class="task-list"></ul>
+        </div>
+        
+        <div class="widget">
+             <div class="widget-header">
+                <h2>願望清單</h2>
+                <button class="btn btn-small btn-danger" onclick="resetAllData()">重設所有資料</button>
+            </div>
+            <div class="input-group">
+                <input type="text" id="wish-input" placeholder="想要的東西 (例如: 新遊戲)">
+                <input type="number" id="wish-cost-input" min="1" placeholder="所需金幣">
+                <button class="btn" onclick="addWish()">新增願望</button>
+            </div>
+            <ul id="wish-list" class="wish-list"></ul>
+        </div>
+
+        <div class="widget">
+            <div id="calendar-container">
+                <div class="widget-header">
+                     <h2>歷史紀錄</h2>
+                     <button class="btn btn-small" onclick="openMonthlyEventsModal()">管理每月事項</button>
+                </div>
+                <div id="calendar-nav">
+                    <button class="btn btn-nav" onclick="changeMonth(-1)">‹ 上一月</button>
+                    <div>
+                        <select id="year-select" onchange="changeYear(this.value)"></select>
+                        <span id="month-display" style="margin-left: 10px;"></span>
+                    </div>
+                    <button class="btn btn-nav" onclick="changeMonth(1)">下一月 ›</button>
+                </div>
+                <div id="calendar"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modals -->
+    <div id="edit-modal" class="modal"><div class="modal-content"><span class="close-button" onclick="closeModal('edit-modal')">&times;</span><h2>編輯任務</h2><div id="edit-form-content"></div><button id="save-edit-btn" class="btn">儲存</button></div></div>
+    <div id="monthly-events-modal" class="modal"><div class="modal-content"><span class="close-button" onclick="closeModal('monthly-events-modal')">&times;</span><h2>管理每月循環事項</h2><div class="input-group"><input type="text" id="monthly-event-name" placeholder="事項名稱"><input type="number" id="monthly-event-day" placeholder="日期 (1-31)" min="1" max="31"><button class="btn" onclick="addMonthlyEvent()">新增</button></div><ul id="monthly-events-list" class="monthly-events-list"></ul></div></div>
+
+    <audio id="coin-sound" src="https://www.myinstants.com/media/sounds/mario-coin-sound-effect.mp3" preload="auto"></audio>
+    <audio id="powerup-sound" src="https://www.myinstants.com/media/sounds/super-mario-bros-power-up-sound-effect_1.mp3" preload="auto"></audio>
+
+    <script>
+        // --- DATA & STATE ---
+        let points = 0;
+        let weeklyTasks = [], singleTasks = [], wishes = [], monthlyEvents = [];
+        let history = [], weeklyGoalStatus = {};
+        let currentCalendarDate = new Date();
+
+        // --- DOM ELEMENTS ---
+        const $ = (selector) => document.querySelector(selector);
+        
+        // --- INITIALIZATION ---
+        function initializeApp() {
+            loadData();
+            setupDragAndDrop();
+            renderAll();
+        }
+        window.onload = initializeApp;
+
+        window.onclick = (event) => {
+            if (event.target.classList.contains('modal')) closeModal(event.target.id);
+        };
+
+        // --- DATA PERSISTENCE ---
+        function saveData() {
+            const weekStartDate = localStorage.getItem('weekStartDate');
+            localStorage.setItem('taskMasterData', JSON.stringify({
+                points, weeklyTasks, singleTasks, wishes, history, weeklyGoalStatus, monthlyEvents, weekStartDate
+            }));
+        }
+
+        function loadData() {
+            const data = JSON.parse(localStorage.getItem('taskMasterData'));
+            if (data) {
+                points = data.points || 0;
+                weeklyTasks = data.weeklyTasks || [];
+                singleTasks = data.singleTasks || [];
+                wishes = data.wishes || [];
+                history = data.history || [];
+                weeklyGoalStatus = data.weeklyGoalStatus || {};
+                monthlyEvents = data.monthlyEvents || [];
+                if(data.weekStartDate) localStorage.setItem('weekStartDate', data.weekStartDate);
+            }
+            checkWeeklyReset();
+        }
+
+        function resetAllData() {
+            if (confirm('警告！您確定要刪除所有資料嗎？\n此操作將永久清除所有任務、願望、積分和歷史紀錄，且無法復原。')) {
+                localStorage.clear();
+                location.reload();
+            }
+        }
+
+        // --- TASK MANAGEMENT ---
+        function addWeeklyTask() {
+            const name = $('#weekly-task-input').value.trim(); if (!name) return;
+            const subtasks = $('#weekly-subtask-input').value.trim().split(',').filter(Boolean).map(st => ({ name: st.trim(), completed: false }));
+            weeklyTasks.push({id: Date.now(), name, subTasks: subtasks, goal: parseInt($('#weekly-goal-input').value) || 1, completedCount: 0});
+            $('#weekly-task-input').value = ''; $('#weekly-subtask-input').value = ''; $('#weekly-goal-input').value = '1';
+            renderAll();
+        }
+
+        function addSingleTask() {
+            const name = $('#single-task-input').value.trim(); if (!name) return;
+            const subtasks = $('#single-subtask-input').value.trim().split(',').filter(Boolean).map(st => ({ name: st.trim(), completed: false }));
+            singleTasks.push({id: Date.now(), name, subTasks: subtasks, completed: false, dueDate: $('#single-task-due-date').value, importance: parseInt($('#single-task-importance').value), addedDate: new Date().toISOString()});
+            $('#single-task-input').value = ''; $('#single-subtask-input').value = ''; $('#single-task-due-date').value = '';
+            renderAll();
+        }
+        
+        function handleTaskCompletion(task, pointsValue) {
+            task.completed = true; updatePoints(pointsValue); $('#coin-sound').play(); addToHistory(new Date()); renderAll();
+        }
+
+        function toggleTask(type, taskId, subTaskIndex = null) {
+            const task = (type === 'weekly' ? weeklyTasks : singleTasks).find(t => t.id === taskId); if (!task) return;
+            if (type === 'weekly') {
+                 if (subTaskIndex !== null) {
+                    const subTask = task.subTasks[subTaskIndex];
+                    if (!subTask.completed) {
+                        subTask.completed = true;
+                        if (task.subTasks.every(st => st.completed)) { handleWeeklyTaskCompletion(task); task.subTasks.forEach(st => st.completed = false); }
+                    }
+                } else { handleWeeklyTaskCompletion(task); }
+            } else { // Single Task
+                 if (task.completed) return;
+                if (subTaskIndex !== null) {
+                    task.subTasks[subTaskIndex].completed = !task.subTasks[subTaskIndex].completed;
+                    if (task.subTasks.every(st => st.completed)) { handleTaskCompletion(task, 5 + task.importance * 2); }
+                } else { handleTaskCompletion(task, 5 + task.importance * 2); }
+            }
+            renderAll();
+        }
+
+        function handleWeeklyTaskCompletion(task) {
+            if (task.completedCount < task.goal) {
+                task.completedCount++; updatePoints(10); $('#coin-sound').play(); addToHistory(new Date());
+                if (task.completedCount === task.goal) { updatePoints(20); $('#powerup-sound').play(); }
+            }
+        }
+
+        function deleteTask(type, id) {
+            if (confirm('確定要刪除此任務嗎？')) {
+                if (type === 'weekly') weeklyTasks = weeklyTasks.filter(t => t.id !== id); else singleTasks = singleTasks.filter(t => t.id !== id);
+                renderAll();
+            }
+        }
+        
+        function deleteAllCompletedSingleTasks() {
+            if (singleTasks.filter(task => task.completed).length === 0) { alert('沒有已完成的單次任務可以刪除。'); return; }
+            if (confirm('確定要刪除所有已完成的單次任務嗎？此操作無法復原。')) { singleTasks = singleTasks.filter(task => !task.completed); renderAll(); }
+        }
+
+        // --- DRAG & DROP ---
+        function setupDragAndDrop() {
+            const lists = [$('#weekly-task-list'), $('#single-task-list')];
+            lists.forEach(list => {
+                let draggingElement = null;
+                list.addEventListener('dragstart', e => {
+                    if (e.target.classList.contains('task-item')) {
+                        draggingElement = e.target;
+                        setTimeout(() => e.target.classList.add('dragging'), 0);
+                    }
+                });
+
+                list.addEventListener('dragend', e => {
+                    if(draggingElement) {
+                        draggingElement.classList.remove('dragging');
+                        draggingElement = null;
+                    }
+                });
+
+                list.addEventListener('dragover', e => {
+                    e.preventDefault();
+                    if (!draggingElement) return;
+
+                    const afterElement = getDragAfterElement(list, e.clientY);
+                    if (afterElement == null) {
+                        list.appendChild(draggingElement);
+                    } else {
+                        list.insertBefore(draggingElement, afterElement);
+                    }
+                });
+                
+                list.addEventListener('drop', e => {
+                     e.preventDefault();
+                     if (!draggingElement) return;
+                     
+                     const listId = list.id;
+                     const taskArray = listId === 'weekly-task-list' ? weeklyTasks : singleTasks;
+                     const newIdOrder = [...list.querySelectorAll('.task-item')].map(item => parseInt(item.dataset.id));
+                     
+                     taskArray.sort((a, b) => newIdOrder.indexOf(a.id) - newIdOrder.indexOf(b.id));
+                     
+                     saveData(); // Save new order immediately
+                });
+            });
+        }
+
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.task-item:not(.dragging)')];
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        // --- WEEKLY RESET & CALENDAR STATUS ---
+        function manualResetWeeklyTasks() {
+            if (confirm('您確定要開始新的一周嗎？這會評估上一周的目標並重設計數。')) {
+                evaluateAndStoreLastWeekStatus(); resetCoreWeeklyLogic(); localStorage.setItem('weekStartDate', new Date().toISOString().split('T')[0]); renderAll();
+            }
+        }
+
+        function resetCoreWeeklyLogic() {
+            weeklyTasks.forEach(task => { task.completedCount = 0; if(task.subTasks) task.subTasks.forEach(st => st.completed = false); });
+            localStorage.setItem('lastReset', new Date().toISOString());
+        }
+        
+        function checkWeeklyReset() {
+            const now = new Date(); const lastResetStr = localStorage.getItem('lastReset');
+            if (!lastResetStr) { localStorage.setItem('lastReset', now.toISOString()); return; }
+            const lastReset = new Date(lastResetStr);
+            if (now.getDay() === 1 && (now - lastReset) / (1000 * 60 * 60 * 24) >= 1) {
+                evaluateAndStoreLastWeekStatus(); resetCoreWeeklyLogic(); localStorage.setItem('weekStartDate', new Date().toISOString().split('T')[0]);
+            }
+        }
+
+        function getWeekIdentifier(d) {
+            d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
+            var yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+            return d.getUTCFullYear() + '-' + Math.ceil((((d - yearStart) / 86400000) + 1)/7);
+        }
+
+        function evaluateAndStoreLastWeekStatus() {
+            if (weeklyTasks.length === 0) return;
+            const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+            weeklyGoalStatus[getWeekIdentifier(yesterday)] = weeklyTasks.every(t => t.completedCount >= t.goal);
+        }
+
+        // --- WISH & MONTHLY EVENTS MANAGEMENT ---
+        function addWish() {
+            const name = $('#wish-input').value.trim(); const cost = parseInt($('#wish-cost-input').value);
+            if (!name || !cost) return;
+            wishes.push({ id: Date.now(), name, cost }); $('#wish-input').value = ''; $('#wish-cost-input').value = ''; renderAll();
+        }
+
+        function redeemWish(id) {
+            const wish = wishes.find(w => w.id === id);
+            if (wish && points >= wish.cost) { updatePoints(-wish.cost); $('#powerup-sound').play(); wishes = wishes.filter(w => w.id !== id); } else { alert('金幣不足!'); }
+            renderAll();
+        }
+        
+        function deleteWish(id) { if(confirm('確定要刪除此願望嗎?')) { wishes = wishes.filter(w => w.id !== id); renderAll(); } }
+
+        function addMonthlyEvent() {
+            const name = $('#monthly-event-name').value.trim(); const day = parseInt($('#monthly-event-day').value);
+            if (!name || !day) return;
+            monthlyEvents.push({ id: Date.now(), name, day }); $('#monthly-event-name').value = ''; $('#monthly-event-day').value = '';
+            renderMonthlyEvents(); saveData(); renderCalendar();
+        }
+
+        function deleteMonthlyEvent(id) { monthlyEvents = monthlyEvents.filter(e => e.id !== id); renderMonthlyEvents(); saveData(); renderCalendar(); }
+
+        // --- MODAL & EDITING ---
+        function openModal(id) { $(`#${id}`).style.display = 'block'; }
+        function closeModal(id) { $(`#${id}`).style.display = 'none'; }
+        
+        function openEditModal(type, id) {
+            const task = (type === 'weekly' ? weeklyTasks : singleTasks).find(t => t.id === id); if (!task) return; let formHtml = '';
+            if (type === 'weekly') {
+                formHtml = `<div class="input-group"><label>任務:</label><input type="text" id="edit-task-name" value="${task.name}"><label>子任務:</label><textarea id="edit-subtasks">${task.subTasks.map(st=>st.name).join(', ')}</textarea><label>目標次數:</label><input type="number" id="edit-weekly-goal" value="${task.goal}" min="1"><label>已完成:</label><input type="number" id="edit-completed-count" value="${task.completedCount}" min="0"></div>`;
+            } else {
+                formHtml = `<div class="input-group"><label>任務:</label><input type="text" id="edit-task-name" value="${task.name}"><label>子任務:</label><textarea id="edit-subtasks">${task.subTasks.map(st=>st.name).join(', ')}</textarea><label>截止:</label><input type="date" id="edit-due-date" value="${task.dueDate || ''}"><label>重要性:</label><select id="edit-importance"><option value="1" ${task.importance === 1 ? 'selected' : ''}>低</option><option value="2" ${task.importance === 2 ? 'selected' : ''}>中</option><option value="3" ${task.importance === 3 ? 'selected' : ''}>高</option></select></div>`;
+            }
+            $('#edit-form-content').innerHTML = formHtml; $('#save-edit-btn').onclick = () => saveEdit(type, id); openModal('edit-modal');
+        }
+
+        function saveEdit(type, id) {
+            const task = (type === 'weekly' ? weeklyTasks : singleTasks).find(t => t.id === id); if (!task) return;
+            task.name = $('#edit-task-name').value.trim(); const subtaskStr = $('#edit-subtasks').value.trim();
+            task.subTasks = subtaskStr.split(',').filter(Boolean).map(st => ({ name: st.trim(), completed: false }));
+            if (type === 'weekly') {
+                task.goal = parseInt($('#edit-weekly-goal').value) || 1; task.completedCount = parseInt($('#edit-completed-count').value) || 0;
+            } else {
+                task.dueDate = $('#edit-due-date').value; task.importance = parseInt($('#edit-importance').value);
+            }
+            closeModal('edit-modal'); renderAll();
+        }
+
+        function openMonthlyEventsModal() { renderMonthlyEvents(); openModal('monthly-events-modal'); }
+
+        // --- POINTS & HISTORY ---
+        function updatePoints(amount) { points += amount; }
+        function addToHistory(date) { const dateString = date.toISOString().split('T')[0]; if (!history.includes(dateString)) history.push(dateString); }
+        
+        // --- CALENDAR NAVIGATION ---
+        function changeMonth(delta) { currentCalendarDate.setMonth(currentCalendarDate.getMonth() + delta); renderCalendar(); }
+        function changeYear(year) { currentCalendarDate.setFullYear(parseInt(year)); renderCalendar(); }
+
+        // --- RENDER FUNCTIONS ---
+        function renderAll() {
+            renderPoints(); renderWeeklyTasks(); renderSingleTasks(); renderWishes(); renderCalendar(); saveData();
+        }
+
+        function renderPoints() { $('#points-display').textContent = points; }
+        
+        function renderTaskItem(task, type) {
+            const li = document.createElement('li');
+            li.className = `task-item ${task.completed ? 'completed' : ''}`;
+            li.dataset.id = task.id;
+            li.draggable = true;
+
+            const subtaskHtml = task.subTasks.map((st, i) => `<div><input type="checkbox" onchange="toggleTask('${type}', ${task.id}, ${i})" ${st.completed ? 'checked' : ''} ${task.completed ? 'disabled' : ''}><span>${st.name}</span></div>`).join('');
+            
+            let mainCheckbox = '';
+            if (type === 'single') {
+                mainCheckbox = `<input type="checkbox" onchange="toggleTask('single', ${task.id})" ${task.completed ? 'checked disabled' : ''}>`;
+            } else if (task.subTasks.length === 0) {
+                mainCheckbox = `<input type="checkbox" onchange="toggleTask('weekly', ${task.id})" ${task.completedCount >= task.goal ? 'disabled' : ''}>`;
+            }
+
+            let details = '';
+            if (type === 'weekly') {
+                li.classList.toggle('completed', task.completedCount >= task.goal);
+                details = `<span class="weekly-goal">${task.completedCount}/${task.goal}</span>`;
+            } else {
+                details = `<span class="importance">${'❤️'.repeat(task.importance)}</span>${task.dueDate ? `<span class="due-date">${task.dueDate}</span>` : ''}`;
+            }
+
+            li.innerHTML = `
+                ${mainCheckbox}
+                <span class="task-name">${task.name}${task.subTasks.length > 0 ? `<div class="sub-tasks">${subtaskHtml}</div>` : ''}</span>
+                ${details}
+                <button class="btn-action btn-edit" onclick="openEditModal('${type}', ${task.id})">✏️</button>
+                <button class="btn-action btn-delete" onclick="deleteTask('${type}', ${task.id})">🗑️</button>`;
+            return li;
+        }
+        
+        function renderWeeklyTasks() {
+            $('#weekly-task-list').innerHTML = '';
+            weeklyTasks.forEach(task => $('#weekly-task-list').appendChild(renderTaskItem(task, 'weekly')));
+            const startDateStr = localStorage.getItem('weekStartDate');
+            if(startDateStr) {
+                const start = new Date(startDateStr); const today = new Date(); today.setHours(0,0,0,0); start.setHours(0,0,0,0);
+                const diffTime = today - start; const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                $('#weekly-task-day-counter').textContent = `- 第 ${diffDays} 天`;
+            } else { $('#weekly-task-day-counter').textContent = ''; }
+        }
+
+        function renderSingleTasks() {
+            $('#single-task-list').innerHTML = '';
+            singleTasks.forEach(task => $('#single-task-list').appendChild(renderTaskItem(task, 'single')));
+        }
+
+        function renderWishes() {
+            $('#wish-list').innerHTML = '';
+            wishes.forEach(wish => {
+                const li = document.createElement('li'); li.className = 'wish-item';
+                li.innerHTML = `<span class="task-name">${wish.name}</span><span class="cost">${wish.cost} 💰</span><button class="btn btn-redeem" onclick="redeemWish(${wish.id})" ${points < wish.cost ? 'disabled' : ''}>換領</button><button class="btn-action btn-delete" onclick="deleteWish(${wish.id})">🗑️</button>`;
+                $('#wish-list').appendChild(li);
+            });
+        }
+        
+        function renderMonthlyEvents() {
+            const list = $('#monthly-events-list'); list.innerHTML = '';
+            monthlyEvents.forEach(e => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span>${e.day}日 - ${e.name}</span><button class="btn-action btn-delete" onclick="deleteMonthlyEvent(${e.id})">🗑️</button>`;
+                list.appendChild(li);
+            });
+        }
+
+        function renderCalendar() {
+            const calendar = $('#calendar'); calendar.innerHTML = '';
+            const month = currentCalendarDate.getMonth(); const year = currentCalendarDate.getFullYear();
+            
+            $('#month-display').textContent = `${month + 1}月`;
+            const yearSelect = $('#year-select');
+            if(yearSelect.options.length === 0) {
+                const currentYear = new Date().getFullYear();
+                for(let y = currentYear - 5; y <= currentYear + 5; y++) {
+                    const option = new Option(y + '年', y); yearSelect.add(option);
+                }
+            }
+            yearSelect.value = year;
+
+            ['日', '一', '二', '三', '四', '五', '六'].forEach(day => {
+                const dayCell = document.createElement('div'); dayCell.classList.add('calendar-day', 'day-header'); dayCell.innerText = day; calendar.appendChild(dayCell);
+            });
+            const firstDayOfMonth = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate();
+            for (let i = 0; i < firstDayOfMonth; i++) calendar.appendChild(document.createElement('div')).classList.add('calendar-day', 'empty');
+            
+            for (let i = 1; i <= daysInMonth; i++) {
+                const cell = document.createElement("div"); cell.classList.add('calendar-day');
+                const cellDate = new Date(year, month, i); const dateString = cellDate.toISOString().split('T')[0];
+                const weekId = getWeekIdentifier(cellDate);
+                if (weeklyGoalStatus[weekId] === true) cell.classList.add('week-goal-met');
+                else if (weeklyGoalStatus[weekId] === false) cell.classList.add('week-goal-missed');
+                
+                const content = document.createElement('div'); content.classList.add('day-content');
+                content.innerHTML = `<div class="day-number">${i}</div>`;
+                
+                if (history.includes(dateString)) content.querySelector('.day-number').innerHTML += ' <span class="record-mark">💎</span>';
+                
+                singleTasks.filter(t => t.dueDate === dateString).forEach(t => { content.innerHTML += `<span class="calendar-event due-date-event" title="${t.name}">${t.name}</span>`; });
+                monthlyEvents.filter(e => e.day === i).forEach(e => { content.innerHTML += `<span class="calendar-event monthly-event" title="${e.name}">${e.name}</span>`; });
+
+                if (i === new Date().getDate() && year === new Date().getFullYear() && month === new Date().getMonth()) cell.style.borderColor = 'var(--mario-yellow)';
+                cell.appendChild(content); calendar.appendChild(cell);
+            }
+        }
+    </script>
+</body>
+</html>
